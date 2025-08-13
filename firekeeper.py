@@ -1,5 +1,6 @@
 from ultralytics import YOLO
 import cv2
+import numpy as np
 from ultralytics.utils.plotting import Annotator
 
 
@@ -35,7 +36,9 @@ def run_demo():
     # USB camera on WSL2
     model = YOLO("yolo11n.pt")
     cap = cv2.VideoCapture(0)
-    cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'))
+    fire = cv2.imread('fire.png')
+    #    cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'))
+    # Create a mask of logo
 
     assert cap.isOpened(), "Camera not found. Please check the camera connection."
 
@@ -44,20 +47,38 @@ def run_demo():
         
         # BGR to RGB conversion is performed under the hood
         # see: https://github.com/ultralytics/ultralytics/issues/2575
-        results = model.predict(img)
-
+        results = model.predict(img, classes=0)
+        result_len = 0
         for r in results:
             
             annotator = Annotator(img)
             
             boxes = r.boxes
             for box in boxes:
+                result_len +=1
                 
                 b = box.xyxy[0]  # get box coordinates in (left, top, right, bottom) format
                 c = box.cls
                 annotator.box_label(b, model.names[int(c)])
+        size = 10 * result_len
+        if size > 0:
+            fire = cv2.resize(fire, (size, size))
+            img2gray = cv2.cvtColor(fire, cv2.COLOR_BGR2GRAY)
+            ret, mask = cv2.threshold(img2gray, 1, 255, cv2.THRESH_BINARY)
+
+            img = annotator.result()  
+
+            # Region of Image (ROI), where we want to insert logo
+            roi = img[-size-10:-10, -size-10:-10]
+
+            # Set an index of where the mask is
+            roi[np.where(mask)] = 0
+            roi += fire
+            # Create a mask of logo
+            img2gray = cv2.cvtColor(fire, cv2.COLOR_BGR2GRAY)
+            ret, mask = cv2.threshold(img2gray, 1, 255, cv2.THRESH_BINARY)
+
               
-        img = annotator.result()  
         cv2.imshow('YOLO 11 Detection', img)     
         if cv2.waitKey(1) & 0xFF == ord(' '):
             break
